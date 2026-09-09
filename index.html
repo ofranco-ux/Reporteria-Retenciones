@@ -96,7 +96,8 @@
     
     <ul class="nav nav-tabs" id="myTab" role="tablist">
         <li class="nav-item"><button class="nav-link active" id="inbound-tab"><i class="bi bi-headset me-2"></i> Inbound</button></li>
-        <li class="nav-item"><button class="nav-link" id="outbound-tab"><i class="bi bi-telephone-outbound me-2"></i> Outbound</button></li>
+        <!-- Pestaña renombrada a Callback -->
+        <li class="nav-item"><button class="nav-link" id="callback-tab"><i class="bi bi-telephone-outbound me-2"></i> Callback</button></li>
         <li class="nav-item"><button class="nav-link" id="chat-tab"><i class="bi bi-chat-dots me-2"></i> Chat Digital</button></li>
     </ul>
 
@@ -131,7 +132,6 @@
         <div class="col-xl-2 col-md-4 col-sm-6" id="card-4"><div class="glass-panel p-3 h-100 kpi-wrapper" id="card-4-inner"><div class="kpi-info"><span class="kpi-title" id="kpi-t4">% Abandono</span><span class="kpi-value" id="kpi-v4">0%</span></div><div class="kpi-icon-box" id="kpi-i4-box"><i id="kpi-i4" class="bi bi-graph-down-arrow"></i></div></div></div>
         <div class="col-xl-2 col-md-4 col-sm-6" id="card-5"><div class="glass-panel p-3 h-100 kpi-wrapper" id="card-5-inner"><div class="kpi-info"><span class="kpi-title" id="kpi-t5">SLA Global</span><span class="kpi-value" id="kpi-v5">0%</span></div><div class="kpi-icon-box" id="kpi-i5-box"><i id="kpi-i5" class="bi bi-award-fill"></i></div></div></div>
         
-        <!-- Tarjeta de AHT con clase kpi-value-time -->
         <div class="col-xl-2 col-md-4 col-sm-6" id="card-6"><div class="glass-panel p-3 h-100 kpi-wrapper bg-white"><div class="kpi-info"><span class="kpi-title" id="kpi-t6">AHT / ASA</span><span class="kpi-value kpi-value-time" id="kpi-v6">00:00 / 00:00</span></div><div class="kpi-icon-box" style="background:#F1F5F9; color:#475569;"><i id="kpi-i6" class="bi bi-clock-history"></i></div></div></div>
     </div>
 
@@ -235,8 +235,13 @@
                 excelWorkbook = XLSX.read(arrayBuffer, {type: 'array'});
             }
 
-            let sheetName = moduleName === 'INBOUND' ? 'Inbound' : (moduleName === 'OUTBOUND' ? 'Outbound' : 'Chat');
-            if (!excelWorkbook.Sheets[sheetName]) throw new Error(`La pestaña "${sheetName}" no existe.`);
+            // Manejo de pestaña: busca "Callback", si no existe intenta con "Outbound"
+            let sheetName = moduleName === 'INBOUND' ? 'Inbound' : (moduleName === 'CALLBACK' ? 'Callback' : 'Chat');
+            if (moduleName === 'CALLBACK' && !excelWorkbook.Sheets[sheetName] && excelWorkbook.Sheets['Outbound']) {
+                sheetName = 'Outbound'; // Fallback por si el Excel sigue diciendo Outbound
+            }
+
+            if (!excelWorkbook.Sheets[sheetName]) throw new Error(`La pestaña "${sheetName}" no existe en el archivo.`);
 
             currentData = XLSX.utils.sheet_to_json(excelWorkbook.Sheets[sheetName], {raw: false});
         } catch (error) {
@@ -269,7 +274,7 @@
             
             tHead.innerHTML = `<th>Intervalo</th><th>Recibidas</th><th>Atendidas</th><th>Atend. SLA</th><th>Abandonadas</th><th>% Abandono</th><th>SLA Global</th><th>AHT</th><th>ASA</th>`;
         } 
-        else if (modulo === 'OUTBOUND') {
+        else if (modulo === 'CALLBACK') {
             document.getElementById('card-3').style.display = 'none'; document.getElementById('card-4').style.display = 'none'; document.getElementById('card-5').style.display = 'none'; 
             
             document.getElementById('label-campana').innerHTML = '<i class="bi bi-list-task me-1"></i> Campaña';
@@ -360,13 +365,13 @@
             const aht = parseFloat(row['AHT']) || 0;
             const asa = parseFloat(row['ASA']) || 0; 
 
-            if (currentModule !== 'OUTBOUND' && rec < (aten + aban)) {
+            if (currentModule !== 'CALLBACK' && rec < (aten + aban)) {
                 rec = aten + aban;
             }
 
             tRec += rec; tAten += aten; tSLA += atenSLA; tAban += aban;
             
-            let baseAHT = (currentModule === 'OUTBOUND') ? rec : aten;
+            let baseAHT = (currentModule === 'CALLBACK') ? rec : aten;
             sumAHT += (aht * baseAHT); 
             sumASA += (asa * aten);
 
@@ -385,7 +390,7 @@
 
         const sortedIntervals = Object.keys(intMap).sort((a, b) => timeToMinutes(a) - timeToMinutes(b));
 
-        if (currentModule === 'OUTBOUND') {
+        if (currentModule === 'CALLBACK') {
             document.getElementById('kpi-v1').innerText = tRec.toLocaleString();
             let avgAHT = tRec > 0 ? (sumAHT / tRec) : 0;
             document.getElementById('kpi-v2').innerText = formatSeconds(avgAHT); 
@@ -501,7 +506,7 @@
 
         let datasets = [];
 
-        if (currentModule === 'OUTBOUND') {
+        if (currentModule === 'CALLBACK') {
             datasets = [{
                 type: 'bar',
                 label: 'Llamadas Realizadas', 
@@ -657,7 +662,7 @@
                         ticks: { font: { weight: '700' } } 
                     },
                     y1: { 
-                        type: 'linear', display: (currentModule !== 'OUTBOUND'), position: 'right', beginAtZero: true, max: 120,
+                        type: 'linear', display: (currentModule !== 'CALLBACK'), position: 'right', beginAtZero: true, max: 120,
                         border: {display: false}, grid: { drawOnChartArea: false, drawTicks: false }, 
                         ticks: { font: { weight: '700' }, stepSize: 20, callback: function(value) { return value + '%'; } } 
                     },
@@ -682,7 +687,7 @@
     }
 
     document.getElementById('inbound-tab').addEventListener('click', () => loadModule('INBOUND'));
-    document.getElementById('outbound-tab').addEventListener('click', () => loadModule('OUTBOUND'));
+    document.getElementById('callback-tab').addEventListener('click', () => loadModule('CALLBACK'));
     document.getElementById('chat-tab').addEventListener('click', () => loadModule('CHAT'));
 
     loadModule('INBOUND');
